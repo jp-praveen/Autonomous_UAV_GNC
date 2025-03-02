@@ -37,7 +37,7 @@ graph TD;
     C -->|Inertial Obstacle Coordinates| D[Trajectory Planner];
     D -->|Collision Free Waypoints| E[MAVROS Flight Controller];
     E -->|Autonomous UAV Navigation| F[PX4 UAV];
-
+```
 ## **🛠️ Usage**
 ### **1️⃣Hardware Prerequisites**
 - **Pixhawk** 
