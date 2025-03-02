@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+# Importing all necessary libraries
 import numpy as np
 import rospy
 import sys
@@ -9,27 +10,48 @@ from mavros_msgs.msg import State
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float32MultiArray
 from scipy.interpolate import BSpline
-
 import time
 import math
-
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from darknet_ros_msgs.msg import BoundingBoxes
 import threading 
 
+# ==========================
+# Object Detection Class
+# ==========================
+
 class ObjectDetector:
+    """
+    This class handles real-time object detection using YOLOv3 (via darknet_ros).
+    It also processes depth data (from realsense stereocamera) to estimate obstacle positions in 3D space.
+    """
     def __init__(self, update_callback):
+        """
+        Initializes object detection and subscribes to necessary ROS topics.
+        """
+        # update_callback: Callback function to send detected object data
         self.update_callback = update_callback
+
+        # Convert ROS images to OpenCV format
         self.bridge = CvBridge()
+
+        # Subscribe to RGB camera image
         self.image_sub = rospy.Subscriber('/camera/color/image_raw', Image, self.image_callback)
+
+         # Subscribe to bounding boxes from YOLO object detection
         self.bbox_sub = rospy.Subscriber('/darknet_ros/bounding_boxes', BoundingBoxes, self.bbox_callback)
+
+        # Subscribe to depth camera image for distance estimation
         self.depth_sub = rospy.Subscriber('/camera/aligned_depth_to_color/image_raw', Image, self.depth_callback)
         self.bbox_data = None
         self.depth_data = None
 
     def image_callback(self, data):
+
+        """ Receives and processes RGB camera images  """
+
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
@@ -38,12 +60,14 @@ class ObjectDetector:
         #cv2.waitKey(3)
 
     def bbox_callback(self, data):
+        """ Receives bounding boxes from YOLO object detection. """
         #rospy.loginfo("bounding box data received")    
         #rospy.loginfo("Bounding box data received with {} objects".format(len(data.bounding_boxes)))
         self.bbox_data = data
         self.process_data()
 
     def depth_callback(self, data):
+        """ Receives depth camera data for distance estimation. """
         #rospy.loginfo("depth data received")    
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, desired_encoding='passthrough')
@@ -52,20 +76,19 @@ class ObjectDetector:
             print(e)
 
         self.depth_data = depth
-        #print "flag2"
 
     def process_data(self):
-        #print('flag_process_data')
-        #print(self.depth_data)        
-        #print(len(self.depth_data))
-        
-        #rospy.loginfo("Processing data")
+        """ Process bounding box and depth data to determine the object's 3D position."""
         if self.bbox_data is not None and self.depth_data is not None and len(self.depth_data) > 0:
             #rospy.loginfo("Processing data 2")                   
             detection_results = []
             for box in self.bbox_data.bounding_boxes:
-                if box.probability > 0.65:
+                # Only consider detections above 75% confidence
+                if box.probability > 0.75:
+                    # Camera focal length
                     fx, fy = 621.6918, 619.9693
+
+                    # Camera principal point
                     cx, cy = 315.1213, 237.9996
                     center_x = (box.xmin + box.xmax) * 0.5
                     center_y = (box.ymin + box.ymax) * 0.5
@@ -82,15 +105,18 @@ class ObjectDetector:
                     corner_4_x = int(box.xmax)-1
                     corner_4_y = int(box.ymax)-1
                     
+                    # Get depth value at the object's center
                     x, y = int(center_x), int(center_y)
                     depth_value = self.depth_data[y][x]
-
+ 
                     depth_value_c1 = self.depth_data[corner_1_y][corner_1_x]
                     depth_value_c2 = self.depth_data[corner_2_y][corner_2_x]
                     depth_value_c3 = self.depth_data[corner_3_y][corner_3_x]
                     depth_value_c4 = self.depth_data[corner_4_y][corner_4_x]
                     i=0
                     j=0
+
+                    # If depth not found in the center pixels, search the nearby pixels for depth value
                     if depth_value == 0:
                         while i < 20:
                             x = x+i
@@ -105,12 +131,10 @@ class ObjectDetector:
                             if depth_value != 0:
                                 break
                             j=j+1            
-                        print "Depth not found"
-                    #print "Depth: ", depth_value
-                    pos_x = (center_x-cx)*depth_value*0.1/fx
-                    pos_y = (center_y-cy)*depth_value*0.1/fy
-                    #print "", box.Class, "(" ,box.probability*100, ")","is at location (", pos_x, pos_y, depth_value*0.1, ") cm from origin"
-
+                        print "Depth not available at the center pixel"
+                    
+                    # Depth value at the corner of the bounding box
+                    # Used to obtain the width and height of the bounding box
                     i=0
                     j=0
                     if depth_value_c1==0:
@@ -183,8 +207,7 @@ class ObjectDetector:
                             j=j+1            
                         print "Depth for C4 not found"        
                         
-                    #print depth_value_c1, depth_value_c2, depth_value_c3, depth_value_c4         
-
+                    # Convert depth to real-world coordinates
                     pos_x = (center_x-cx)*depth_value*0.1/fx
                     pos_y = (center_y-cy)*depth_value*0.1/fy
 
@@ -202,8 +225,7 @@ class ObjectDetector:
 
                     width = (pos_c4x)-(pos_c3x)
                     height = (pos_c4y)-(pos_c2y)
-                    
-                    #print pos_x, pos_y
+            
                     
                     detection_result = {
                     "class": box.Class,
@@ -214,14 +236,10 @@ class ObjectDetector:
                     "width": width,
                     "height": height,
                      }
-                    #print "Depth: ", depth_value
-                    
-                    #print "", box.Class, "(" ,box.probability*100, ")","is at location (", pos_x, pos_y, depth_value, ") cm from origin", "width",width, "height", height
-                    #detection_result = {"class": box.Class, "probability": box.probability,
-                     #       "pos_x": pos_x, "pos_y": pos_y, "depth": depth_value*0.1, "width":width, "height":height}
+            
                     detection_results.append(detection_result)
 
-                    
+            # If no objects detected, send empty detection        
             if len(detection_results) == 0:  
                 detection_result = {
                 "class": 0,
@@ -234,54 +252,63 @@ class ObjectDetector:
                 }
                 detection_results.append(detection_result)
             self.update_callback(detection_results)
-					
+
+# ========================================
+# UAV Offboard Control Class using MAVROS
+# ========================================
+# 		
 class OffboardControl:
+    """
+    This class handles the UAV's flight control, waypoint navigation, and obstacle avoidance.
+    It integrates with MAVROS for flight control and receives object detection data for obstacle avoidance.
+    """
     def __init__(self, mocap_topic, object1_topic):
         rospy.init_node('offboard_control', anonymous=True)
 
+        # Object detection system
         self.detected_objects_info = []  # This will store the detection info
         self.object_detector = ObjectDetector(self.detected_objects_info_update)
 
-        # Publishers
+        # MAVROS publishers for UAV control
         self.vision_pose_pub = rospy.Publisher('/mavros/vision_pose/pose', PoseStamped, queue_size=10)
         self.local_position_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
 
-        # Service clients
+        # MAVROS service clients for arming and mode switching
         self.arming_client = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
         self.set_mode_client = rospy.ServiceProxy('/mavros/set_mode', SetMode)
 
-        # Subscriber for MOCAP data
+        # Subscribers for MOCAP (Motion Capture) and object detection topics
         self.mocap_subscriber = rospy.Subscriber(mocap_topic, PoseStamped, self.mocap_callback)
         self.object1_subscriber = rospy.Subscriber(object1_topic, PoseStamped, self.object1_callback)
 
         self.local_position_subscriber = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.local_position_callback)
 
-        # MOCAP data
+        # # UAV position and orientation
         self.mocap_position = [0.0, 0.0, 0.0]
         self.mocap_orientation = [0.0, 0.0, 0.0, 1.0]
 
         # State information
         self.current_state = State()
-
+        
+        # File for storing MOCAP (Motion Capture) data
         self.mocap_data_file = open("mocap_data.txt", "w")
 
+        # File for storing local position data
         self.local_position_data_file = open("local_position_data.txt", "w")
 
+        # File for storing trajectory data
         self.traj_position_data_file = open("traj_position_data.txt", "w")
 
         self.nn_input_pub = rospy.Publisher('/nn_input', Float32MultiArray, queue_size=10)
         self.nn_output_sub = rospy.Subscriber('/nn_output', Float32MultiArray, self.nn_callback)
-        self.nn_output = None  # To store the NN predictions
+        self.nn_output = None  
 
     def detected_objects_info_update(self, data):
+        """ Updates detected objects' information from the ObjectDetector class. """
         self.detected_objects_info = data
-        #rospy.loginfo("DEBUG: Updated detected objects in OffboardControl")
-        #for obj in self.detected_objects_info:
-          #  rospy.loginfo("Detected Object: Class={} | Probability={:.2f} | Position=({}, {}, {})".format(
-           #     obj['class'], obj['probability'], obj['pos_x'], obj['pos_y'], obj['depth']))
-
+        
     def start_object_detection(self):
-        # Use a separate thread or the ROS callback system for object detection
+        # Use a separate thread for the callback system for object detection
         self.object_detection_thread = threading.Thread(target=self.run_object_detection)
         self.object_detection_thread.start()
 
@@ -289,6 +316,7 @@ class OffboardControl:
         rospy.spin()  # Keeps Python from exiting until this node is stopped
 
     def local_position_callback(self, msg):
+        """ Updates UAV's local position data. """
         position = msg.pose.position
         orientation = msg.pose.orientation
         data_str = "{},{},{},{},{},{},{},{}\n".format(
@@ -299,6 +327,7 @@ class OffboardControl:
         self.local_position_data_file.write(data_str)
 
     def mocap_callback(self, msg):
+        """ Updates UAV position from motion capture system. """
         self.mocap_position = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
         self.mocap_orientation = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
 
@@ -307,6 +336,7 @@ class OffboardControl:
         self.object1_orientation = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
 
     def arm(self):
+        """ Arms the UAV. """
         self.send_mocap_data()        
         rospy.wait_for_service('/mavros/cmd/arming')
         try:
@@ -317,6 +347,7 @@ class OffboardControl:
             return False
         
     def disarm(self):
+        """Disarms the UAV"""
         rospy.wait_for_service('/mavros/cmd/arming')
         try:
             response = self.arming_client(False)  # Attempt to disarm the drone
@@ -329,6 +360,7 @@ class OffboardControl:
             rospy.logerr("Service call failed: %s" % e)
 
     def set_offboard_mode(self):
+        """ Switches Pixhawk to offboard mode for autonomous control. """
         self.send_mocap_data()    
         rospy.wait_for_service('/mavros/set_mode')
         try:
@@ -339,6 +371,7 @@ class OffboardControl:
             return False
         
     def set_stabilized_mode(self):
+        """Switches Pixhawk to Stabilized mode"""
         rospy.wait_for_service('/mavros/set_mode')
         try:
             response = self.set_mode_client(custom_mode='STABILIZED')
@@ -348,6 +381,7 @@ class OffboardControl:
             return False           
             
     def set_autoland_mode(self):
+        """Land mode for Pixhawk"""
         rospy.wait_for_service('/mavros/set_mode')
         try:
             response = self.set_mode_client(custom_mode='LAND')
@@ -357,6 +391,7 @@ class OffboardControl:
             return False                               
 
     def send_mocap_data(self):
+        """Sending state estimation informtaion (position & orientation) to Pixhawk"""
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()
         msg.pose.position.x = self.mocap_position[0]
@@ -379,6 +414,7 @@ class OffboardControl:
 
 
     def send_setpoint(self, x_pos, y_pos, altitude, yaw_degrees):
+        """ Sends a setpoint (position and orientation) for the UAV to follow. """
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()
         msg.pose.position.x = x_pos
@@ -396,11 +432,12 @@ class OffboardControl:
         self.local_position_pub.publish(msg)
 
     def nn_callback(self, msg):
+        """NN callback for obtaining the collision free trajectory"""
         self.nn_output = np.array(msg.data)  # Store the NN output
         #rospy.loginfo("Received NN Output: {}".format(self.nn_output))
 
     def reconstruct_trajectory(self, tf, rate=5, order=4):
-        """Reconstructs the full trajectory using B-spline coefficients, adapting to the rate."""
+        """Reconstructs the full trajectory using B-spline coefficients."""
         self.send_mocap_data()
         if self.nn_output is None:
             rospy.logerr("No NN output received yet!")
@@ -440,7 +477,6 @@ class OffboardControl:
         sp_x3, sp_y3 = BSpline(knots3, coeffs_x_ParTraj3, order-1), BSpline(knots3, coeffs_y_ParTraj3, order-1)
         self.send_mocap_data()
 
-
         # Generate time vectors
         tVec1 = np.linspace(0, tf/3, N1, endpoint=False)
         tVec2 = np.linspace(tf/3, 2*tf/3, N2, endpoint=False)
@@ -453,7 +489,6 @@ class OffboardControl:
         x3, y3 = sp_x3(tVec3), sp_y3(tVec3)
         self.send_mocap_data()
 
-
         # Combine all trajectory segments
         x_traj = np.concatenate((x1[:-1], x2[:-1], x3))
         y_traj = np.concatenate((y1[:-1], y2[:-1], y3))
@@ -461,14 +496,11 @@ class OffboardControl:
 
         return x_traj, y_traj, t_traj
         
-        
     def save_trajectory(self, x_traj, y_traj, filename="trajectory_output.txt"):
         """Save trajectory points to a text file."""
         np.savetxt(filename, np.column_stack((x_traj, y_traj)), fmt="%.6f", delimiter=",")
         print("Trajectory saved to:", filename)    
         self.send_mocap_data()
-
-
 
     def run(self):
         time.sleep(0.5) 
@@ -476,23 +508,20 @@ class OffboardControl:
         start_time_1 = rospy.Time.now()
         rate = rospy.Rate(5)  # rate for ros
  
+        # Send state estimation data
         self.send_mocap_data()
-        self.set_stabilized_mode()       
 
-        #x = self.mocap_position[0]
-        #y = self.mocap_position[1] 
-        #z =  self.mocap_position[2]
+        # Initiate Pixhawk to stabilized mode
+        self.set_stabilized_mode()       
         
-        #x_obj = 0
-        #y_obj = 0
-        #z_obj = 2    
-        '''
+        # Arm the UAV
         if self.arm():
             rospy.loginfo("Drone armed successfully.")
         else:
             rospy.logerr("Failed to arm the drone.")
             return
             
+        # Save the present location for takeoff
         self.send_mocap_data()
         x = self.mocap_position[0]
         y = self.mocap_position[1] 
@@ -524,7 +553,6 @@ class OffboardControl:
             rate.sleep()
   
         self.send_mocap_data()
-        '''
          
         while not self.detected_objects_info and not rospy.is_shutdown():
             rospy.logwarn("Waiting for object detection...")
@@ -539,6 +567,7 @@ class OffboardControl:
             rospy.loginfo("Detected Objects! Proceed with caution")
             object_list = []
             for obj in self.detected_objects_info:
+                """Converting the obstacle positoin to the MOCAP (Inertial) frame from the body frame"""
                 #rospy.loginfo("Class: {} | Probability: {:.2f}".format(obj['class'], obj['probability'])) 
                 #rospy.loginfo("Position (X, Y, Depth): ({:.2f}, {:.2f}, {:.2f})".format(obj["pos_x"], obj["pos_y"], obj["depth"]*0.1))       
                 collision_depth =  obj['depth']*0.001
@@ -547,6 +576,7 @@ class OffboardControl:
                 x_quad = self.mocap_position[0]
                 y_quad = self.mocap_position[1] 
                 z_quad = self.mocap_position[2]
+
                 self.send_mocap_data()
                 if x_quad > 0 and x_quad+obj['pos_x']*0.01 > 0 and y_quad<0:
                     print(1,x_quad+obj['pos_x']*0.01+0.07, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
@@ -599,15 +629,14 @@ class OffboardControl:
         self.send_mocap_data()
         
         nn_input_msg = Float32MultiArray()
-        #nn_input_msg.data = [0,-3.2, 0, 3.55, -0.95, -1, 0.45, -0.95, 1.65, 0.45,7.1]
+        # Boundary conditions and obstacle location information to the NN for 
+        # obtaining the collision free trajectory
         nn_input_msg.data = [1,-3.2, -1, 3.55, 0.5, -1, 0.54, -0.5, 1.65, 0.54,7.1]
         self.nn_input_pub.publish(nn_input_msg)
         rospy.loginfo("Sent input to NN: {}".format(nn_input_msg.data))
         self.send_mocap_data()
         timeout = rospy.Time.now() + rospy.Duration(0.5)  # 0.5 seconds timeout
         while rospy.Time.now() < timeout:
-            #nn_input_msg = Float32MultiArray()
-            #nn_input_msg.data = [0,-3.5, 0, 3.7, -0.95, -1, 0.45, -0.95, 1.65, 0.45,7.1]
             self.send_mocap_data()
             self.nn_input_pub.publish(nn_input_msg)
             if self.nn_output is not None:  # Check if NN output is received
@@ -618,17 +647,10 @@ class OffboardControl:
             rate.sleep()
         x_obj1_true = self.object1_position[0]
         y_obj1_true = self.object1_position[1] 
-        #z_obj1 =  self.object1_position[2]
-        print(x_obj1,x_obj1_true,y_obj1,y_obj1_true)
-        print(abs(x_obj1_true-x_obj1),abs(y_obj1_true-y_obj1))
-
         
-        #xNN_P1, yNN_P1, vxNN_P1, vyNN_P1, tNN_P1 = self.nn_output[:5]
-        #xNN_P2, yNN_P2, vxNN_P2, vyNN_P2, tNN_P2 = self.nn_output[5:10]     
         xNN_i, yNN_i, xNN_f, yNN_f, tNN_f = nn_input_msg.data[0], nn_input_msg.data[1], nn_input_msg.data[2], nn_input_msg.data[3], nn_input_msg.data[10]
         self.send_mocap_data()
 
-        #print(tNN_P1, tNN_P2, tNN_f)
  
         if self.nn_output is not None:
             rospy.loginfo("Reconstructing trajectory...")
@@ -641,11 +663,8 @@ class OffboardControl:
         if x_traj is not None:
             rospy.loginfo("Trajectory reconstruction successful.")
             self.save_trajectory(x_traj, y_traj, "nn_trajectory.txt")
-            #print("X Trajectory:", x_traj)
-            #print("Y Trajectory:", y_traj)
-            #print("Time:", t_traj)
 
-
+        # Execute the obstacle avoidance path
         for i in range(len(x_traj)):
             if rospy.is_shutdown():
                 break
