@@ -57,9 +57,9 @@ Ensure you have the following dependencies installed:
 ## **📊 Data Logging**
 - **MOCAP Data:** mocap_data.txt
 - **Trajectory Data:** nn_trajectory.txt
-- **Local UAV Position:**local_position_data.txt
+- **Local UAV Position:** local_position_data.txt
 
 ## **👨‍💻 Author**
 Developed by Praveen Jawaharlal Ayyanathan
-[![LinkedIn](https://img.shields.io/badge/-LinkedIn-blue?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/praveen-jawahalal-ayyanathan/)  
-[![Portfolio](https://img.shields.io/badge/-Portfolio-green?style=flat&logo=internet-explorer&logoColor=white)](https://jp-praveen.github.io/)
+- [![LinkedIn](https://img.shields.io/badge/-LinkedIn-blue?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/praveen-jawahalal-ayyanathan/)  
+- [![Portfolio](https://img.shields.io/badge/-Portfolio-green?style=flat&logo=internet-explorer&logoColor=white)](https://jp-praveen.github.io/)
