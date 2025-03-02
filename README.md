@@ -33,7 +33,33 @@ The system detects objects, estimates their 3D position in an inertial frame, an
 ```mermaid
 graph TD;
     A[YOLO Object Detection] -->|Bounding Boxes| B[Depth Camera Processing];
-    B -->|3D Position Estimation| C[Obstacle Mapping];
-    C -->|Collision-Free Path| D[Trajectory Planner];
-    D -->|Optimized Waypoints| E[MAVROS Flight Controller];
+    B -->|3D Position Estimation| C[Coordinate Transformation];
+    C -->|Inertial Obstacle Coordinates| D[Trajectory Planner];
+    D -->|Collision Free Waypoints| E[MAVROS Flight Controller];
     E -->|Autonomous UAV Navigation| F[PX4 UAV];
+
+## **🛠️ Usage**
+### **1️⃣Hardware Prerequisites**
+- **Pixhawk** 
+- **RealSense D435 Stereo Camera** 
+- **Companion computer** like Jetson Nano, Jetson Orin Nano or Raspberry Pi. I used Jetson Nano
+- **Quadcopter Platform** like Holybro S500
+
+### **2️⃣Software Prerequisites**
+Ensure you have the following dependencies installed:
+- **ROS Melodic/NOETIC or ROS2** depending on the companion computer OS
+- **MAVROS** to communicate with Pixhawk
+- **YOLO ROS** for obstacle detection
+- **RealSense ROS** for depth estimation
+- **MOCAP ROS** for state estimation
+- **OpenCV & Python**
+
+## **📊 Data Logging**
+- **MOCAP Data:** mocap_data.txt
+- **Trajectory Data:** nn_trajectory.txt
+- **Local UAV Position:**local_position_data.txt
+
+## **👨‍💻 Author**
+Developed by Praveen Jawaharlal Ayyanathan
+[![LinkedIn](https://img.shields.io/badge/-LinkedIn-blue?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/praveen-jawahalal-ayyanathan/)  
+[![Portfolio](https://img.shields.io/badge/-Portfolio-green?style=flat&logo=internet-explorer&logoColor=white)](https://jp-praveen.github.io/)
