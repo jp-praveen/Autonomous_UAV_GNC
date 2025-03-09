@@ -1,4 +1,4 @@
-# UAV Autonomous Guidance using Sterocamera and Pixhawk
+# Autonomous UAV Guidance using Sterocamera and Pixhawk
 
 ## **🚀 Overview**  
 This repository implements an **autonomous UAV guidance system** integrating:  
