@@ -1,5 +1,5 @@
-# UAV Autonomous Guidance & Object Avoidance using RealSense ROS and MAVROS
-UAV Autonomous Guidance &amp; Object Avoidance using RealSense ROS and MAVROS
+# UAV Autonomous Guidance & Object Avoidance using Sterocamera and Pixhawk
+UAV Autonomous Guidance &amp; Object Avoidance using Sterocamera and Pixhawk
 
 ## **🚀 Overview**  
 This repository implements an **autonomous UAV guidance system** integrating:  
