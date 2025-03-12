@@ -578,57 +578,20 @@ class OffboardControl:
                 z_quad = self.mocap_position[2]
 
                 self.send_mocap_data()
-                if x_quad > 0 and x_quad+obj['pos_x']*0.01 > 0 and y_quad<0:
-                    print(1,x_quad+obj['pos_x']*0.01+0.07, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
-                    x_obj =  x_quad+obj['pos_x']*0.01+0.07
-                    y_obj = y_quad+collision_depth +0.1
-                elif x_quad > 0 and x_quad+obj['pos_x']*0.01 < 0 and y_quad<0:
-                    print(1,x_quad+obj['pos_x']*0.01+0.14, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
-                    x_obj =  x_quad+obj['pos_x']*0.01+0.14
-                    y_obj = y_quad+collision_depth +0.1
-                elif x_quad < 0 and x_quad+obj['pos_x']*0.01 < 0 and y_quad<0:
-                    print(2,x_quad+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth)
-                    x_obj = x_quad+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
-                elif x_quad < 0 and x_quad+obj['pos_x']*0.01 > 0 and y_quad<0:      
-                    print(3,x_quad-0.+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth)
-                    x_obj = x_quad-0.+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
-                elif x_quad > 0 and x_quad+obj['pos_x']*0.01 > 0 and y_quad>0:
-                    print(4,x_quad+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth)
-                    x_obj = x_quad+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
-                elif x_quad > 0 and x_quad+obj['pos_x']*0.01 < 0 and y_quad>0:
-                    print(5,x_quad-0.25+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth)  
-                    x_obj = x_quad-0.25+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
-                elif x_quad < 0 and x_quad+obj['pos_x']*0.01 < 0 and y_quad>0:
-                    print(6,x_quad-0.25+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth)
-                    x_obj = x_quad-0.25+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
-                elif x_quad < 0 and x_quad+obj['pos_x']*0.01 > 0 and y_quad>0:      
-                    print(7,x_quad-0.25+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
-                    x_obj = x_quad-0.25+obj['pos_x']*0.01
-                    y_obj = y_quad+collision_depth+0.1
+                
+                # Obstacle Localizatoni
+                print(1,x_quad+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
+                x_obj =  x_quad+obj['pos_x']*0.01
+                y_obj = y_quad+collision_depth 
 
                 object_list.append((x_obj, y_obj))
-
-            object_list.sort(key=lambda obj: obj[1])   
-            if len(object_list) >= 1:
-                x_obj1, y_obj1 = object_list[0]
-                #y_obj1 = y_obj1 + 0.1301 * y_quad + 0.0778
-                print("First object:", x_obj1, y_obj1)
-
-            if len(object_list) >= 2:
-                x_obj2, y_obj2 = object_list[1]
-                y_obj2 = y_obj2 + 0.1301 * y_quad + 0.0778
-                print("Second object:", x_obj2, y_obj2)        
         else:
             rospy.logwarn("No objects detected. Continuing with default trajectory.")
         
         self.send_mocap_data()
         
         nn_input_msg = Float32MultiArray()
+        
         # Boundary conditions and obstacle location information to the NN for 
         # obtaining the collision free trajectory
         nn_input_msg.data = [1,-3.2, -1, 3.55, 0.5, -1, 0.54, -0.5, 1.65, 0.54,7.1]
