@@ -579,7 +579,7 @@ class OffboardControl:
 
                 self.send_mocap_data()
                 
-                # Obstacle Localizatoni
+                # Obstacle Localization
                 print(1,x_quad+obj['pos_x']*0.01, y_quad+collision_depth+0.1, z_quad-obj['pos_y']*0.01, width, height, collision_depth) 
                 x_obj =  x_quad+obj['pos_x']*0.01
                 y_obj = y_quad+collision_depth 
@@ -591,7 +591,7 @@ class OffboardControl:
         self.send_mocap_data()
         
         nn_input_msg = Float32MultiArray()
-        
+
         # Boundary conditions and obstacle location information to the NN for 
         # obtaining the collision free trajectory
         nn_input_msg.data = [1,-3.2, -1, 3.55, 0.5, -1, 0.54, -0.5, 1.65, 0.54,7.1]
