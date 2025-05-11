@@ -11,13 +11,15 @@ class NeuralNetworkNode:
     def __init__(self):
         rospy.init_node('neural_network_node', anonymous=True)
 
-        # Load both models
+        # Load the NN models
         rospy.loginfo("Loading models...")
-
+        
+        # path planner
         self.model = self.rebuild_model('best_hyperparameters_min_2obs_1ofit.pkl', 11, 10)
         self.model.load_state_dict(torch.load('trained_model_min1_2obs_ofit.pth', map_location=torch.device('cpu')))
         self.model.eval()
-
+        
+        # trajectory planner
         self.model_parTraj = self.rebuild_model('best_hyperparameters_parTrajFull_2obs_1ofit.pkl', 9, 14)
         self.model_parTraj.load_state_dict(torch.load('trained_model_parTrajFull_2obs_ofit.pth', map_location=torch.device('cpu')))
         self.model_parTraj.eval()
@@ -29,7 +31,7 @@ class NeuralNetworkNode:
         self.output_pub = rospy.Publisher('/nn_output', Float32MultiArray, queue_size=10)
 
     def rebuild_model(self, hyperparams_file, input_size, output_size):
-        """Rebuilds a model using hyperparameters from a saved file."""
+        """Rebuild the model using hyperparameters."""
         best_hyperparameters = joblib.load(hyperparams_file)
         n_layers = best_hyperparameters['n_layers']
         hidden_size = best_hyperparameters['hidden_size']
@@ -57,7 +59,7 @@ class NeuralNetworkNode:
         return nn.Sequential(*layers)
 
     def correct_waypoints(self, pos1, pos2, input_data):
-        """Applies correction to the waypoints based on obstacle avoidance constraints."""
+        """Safety margin correction for the path planner"""
         x_obs1, y_obs1, r_obs1 = input_data[4], input_data[5], input_data[6]
         x_obs2, y_obs2, r_obs2 = input_data[7], input_data[8], input_data[9]
 
@@ -74,7 +76,7 @@ class NeuralNetworkNode:
         return pos1, pos2
 
     def input_callback(self, msg):
-        """Processes input, runs inference through both networks, applies corrections, and publishes outputs."""
+        """publishing outputs."""
         rospy.loginfo("Received input: {}".format(msg.data))
 
         # Convert ROS message to PyTorch tensor
@@ -111,14 +113,14 @@ class NeuralNetworkNode:
             outputParTraj2 = self.model_parTraj(inputParTraj2).numpy()
             outputParTraj3 = self.model_parTraj(inputParTraj3).numpy()
 
-        rospy.loginfo("Publishing corrected ParTraj outputs...")
+        rospy.loginfo("Publishing corrected ParTraj outputs")
 
         # Publish all three trajectory segments
         output_msg = Float32MultiArray()
         output_msg.data = np.concatenate([outputParTraj1, outputParTraj2, outputParTraj3]).tolist()
         self.output_pub.publish(output_msg)
 
-        rospy.loginfo("Published corrected trajectory parameters.")
+        rospy.loginfo("Published corrected trajectory parameters")
 
     def run(self):
         rospy.spin()

@@ -29,7 +29,7 @@ class ObjectDetector:
     """
     def __init__(self, update_callback):
         """
-        Initializes object detection and subscribes to necessary ROS topics.
+        Initializing object detection and subscribes to necessary ROS topics.
         """
         # update_callback: Callback function to send detected object data
         self.update_callback = update_callback
@@ -50,7 +50,7 @@ class ObjectDetector:
 
     def image_callback(self, data):
 
-        """ Receives and processes RGB camera images  """
+        """ To receive and processes RGB camera images  """
 
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -60,14 +60,14 @@ class ObjectDetector:
         #cv2.waitKey(3)
 
     def bbox_callback(self, data):
-        """ Receives bounding boxes from YOLO object detection. """
+        """ To receive bounding boxes from YOLO object detection. """
         #rospy.loginfo("bounding box data received")    
         #rospy.loginfo("Bounding box data received with {} objects".format(len(data.bounding_boxes)))
         self.bbox_data = data
         self.process_data()
 
     def depth_callback(self, data):
-        """ Receives depth camera data for distance estimation. """
+        """ To Receive depth camera data for distance estimation. """
         #rospy.loginfo("depth data received")    
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, desired_encoding='passthrough')
@@ -78,21 +78,24 @@ class ObjectDetector:
         self.depth_data = depth
 
     def process_data(self):
-        """ Process bounding box and depth data to determine the object's 3D position."""
+        """ To process bounding box and depth data to determine the object's 3D position."""
         if self.bbox_data is not None and self.depth_data is not None and len(self.depth_data) > 0:
             #rospy.loginfo("Processing data 2")                   
             detection_results = []
             for box in self.bbox_data.bounding_boxes:
                 # Only consider detections above 75% confidence
                 if box.probability > 0.75:
-                    # Camera focal length
+                    # Camera focal length - obtained through camera calibration
                     fx, fy = 621.6918, 619.9693
 
-                    # Camera principal point
+                    # Camera principal point - obtained through camera calibration
                     cx, cy = 315.1213, 237.9996
+                   
+                    # Bounding box center coordinates
                     center_x = (box.xmin + box.xmax) * 0.5
                     center_y = (box.ymin + box.ymax) * 0.5
 
+                    # Bounding box corner coordinates (four corners: 1 to 4)
                     corner_1_x = int(box.xmin)-1
                     corner_1_y = int(box.ymin)-1
 
@@ -106,13 +109,10 @@ class ObjectDetector:
                     corner_4_y = int(box.ymax)-1
                     
                     # Get depth value at the object's center
+                    # Approximating the obstacle using the center of the bounding box
                     x, y = int(center_x), int(center_y)
                     depth_value = self.depth_data[y][x]
  
-                    depth_value_c1 = self.depth_data[corner_1_y][corner_1_x]
-                    depth_value_c2 = self.depth_data[corner_2_y][corner_2_x]
-                    depth_value_c3 = self.depth_data[corner_3_y][corner_3_x]
-                    depth_value_c4 = self.depth_data[corner_4_y][corner_4_x]
                     i=0
                     j=0
 
@@ -207,7 +207,7 @@ class ObjectDetector:
                             j=j+1            
                         print "Depth for C4 not found"        
                         
-                    # Convert depth to real-world coordinates
+                    # Convert pixel coordinates to camera coordinates using pin hole camera model
                     pos_x = (center_x-cx)*depth_value*0.1/fx
                     pos_y = (center_y-cy)*depth_value*0.1/fy
 
@@ -223,6 +223,7 @@ class ObjectDetector:
                     pos_c4x = (corner_4_x-cx)*depth_value_c4*0.1/fx
                     pos_c4y = (corner_4_y-cy)*depth_value_c4*0.1/fy
 
+                    # Width and height of the bounding box 
                     width = (pos_c4x)-(pos_c3x)
                     height = (pos_c4y)-(pos_c2y)
             
